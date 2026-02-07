@@ -1,84 +1,194 @@
 package com.example.smartcampussolution.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.navigation.NavController
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import com.example.smartcampussolution.data.Complaint
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @Composable
 fun AdminScreen(navController: NavController) {
-    AdminScreenContent()
-}
+    val auth = FirebaseAuth.getInstance()
+    val currentUser = auth.currentUser
 
-private data class AdminComplaint(
-    val title: String,
-    val reporter: String,
-    val status: String,
-    val location: String
-)
+    // Check if user is admin
+    if (currentUser?.email != "opharikesh2005@gmail.com") {
+        LaunchedEffect(Unit) {
+            navController.navigate("dashboard") {
+                popUpTo("admin") { inclusive = true }
+            }
+        }
+        return
+    }
+
+    AdminScreenContent(navController)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AdminScreenContent() {
-    val queue = listOf(
-        AdminComplaint("Electrical outage in Lab 3", "Amina K.", "Pending", "Engineering Block"),
-        AdminComplaint("Broken benches near cafeteria", "Samuel T.", "In Review", "Cafeteria"),
-        AdminComplaint("Wi-Fi down in Hostel C", "Lerato M.", "Pending", "Hostel C")
-    )
+private fun AdminScreenContent(navController: NavController) {
+    val firestore = FirebaseFirestore.getInstance()
+    var complaints by remember { mutableStateOf(emptyList<Complaint>()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        firestore.collection("complaints")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    complaints = snapshot.toObjects(Complaint::class.java)
+                }
+                isLoading = false
+            }
+    }
+
+    suspend fun updateStatus(complaintId: String, newStatus: String) {
+        try {
+            firestore.collection("complaints").document(complaintId)
+                .update("status", newStatus).await()
+            snackbarHostState.showSnackbar("Status updated to $newStatus")
+        } catch (e: Exception) {
+            snackbarHostState.showSnackbar("Error: ${e.message}")
+        }
+    }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(text = "Admin Console") }) }
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Admin Console") },
+                navigationIcon = {
+                    TextButton(onClick = { navController.navigateUp() }) {
+                        Text("Back")
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(queue) { item ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(text = "Reported by ${item.reporter}")
-                        Text(text = "Location: ${item.location}")
-                        Text(text = "Status: ${item.status}")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(onClick = {}) { Text(text = "Assign") }
-                            Button(onClick = {}) { Text(text = "Resolve") }
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (complaints.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Text("No complaints found")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(complaints) { complaint ->
+                    ComplaintAdminCard(
+                        complaint = complaint,
+                        onStatusUpdate = { status ->
+                            scope.launch { updateStatus(complaint.id, status) }
                         }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ComplaintAdminCard(
+    complaint: Complaint,
+    onStatusUpdate: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = complaint.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                StatusBadge(status = complaint.status)
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = "Reporter: ${complaint.userEmail}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Location: ${complaint.location}", style = MaterialTheme.typography.bodySmall)
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = complaint.description, style = MaterialTheme.typography.bodyMedium)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (complaint.status == "Pending") {
+                    Button(
+                        onClick = { onStatusUpdate("In Progress") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Review")
+                    }
+                }
+                if (complaint.status != "Resolved") {
+                    Button(
+                        onClick = { onStatusUpdate("Resolved") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Resolve")
+                    }
+                    OutlinedButton(
+                        onClick = { onStatusUpdate("Rejected") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Reject")
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun StatusBadge(status: String) {
+    val color = when (status) {
+        "Pending" -> MaterialTheme.colorScheme.error
+        "In Progress" -> MaterialTheme.colorScheme.tertiary
+        "Resolved" -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+        else -> MaterialTheme.colorScheme.outline
+    }
+    Surface(
+        color = color.copy(alpha = 0.1f),
+        shape = MaterialTheme.shapes.extraSmall,
+        border = androidx.compose.foundation.BorderStroke(1.dp, color)
+    ) {
+        Text(
+            text = status,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = color
+        )
     }
 }

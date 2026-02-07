@@ -1,33 +1,20 @@
 package com.example.smartcampussolution.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.smartcampussolution.data.Complaint
@@ -50,12 +37,16 @@ private fun AddComplaintScreenContent(onComplaintSubmitted: () -> Unit) {
     var category by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var contact by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf("Medium") }
+    var feedback by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
 
     val auth = FirebaseAuth.getInstance()
     val firestore = FirebaseFirestore.getInstance()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val priorities = listOf("Low", "Medium", "High")
 
     suspend fun submitComplaint() {
         if (title.isBlank() || description.isBlank()) {
@@ -78,6 +69,8 @@ private fun AddComplaintScreenContent(onComplaintSubmitted: () -> Unit) {
                             category = category.trim(),
                             location = location.trim(),
                             contact = contact.trim(),
+                            priority = priority,
+                            feedback = feedback.trim(),
                             userId = currentUser.uid,
                             userEmail = currentUser.email ?: "",
                             timestamp = Date()
@@ -105,58 +98,120 @@ private fun AddComplaintScreenContent(onComplaintSubmitted: () -> Unit) {
                                 .padding(20.dp)
                                 .imePadding()
                                 .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
                     text = "Tell us what needs attention",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
-            Text(
-                    text = "Provide clear details so the campus team can respond quickly.",
-                    style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(modifier = Modifier.height(6.dp))
+
+            // Photo Placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { /* Suggestion: Implementation of Camera API */ },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.AddAPhoto,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Click to Capture Incident (Placeholder)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
             OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth()
             )
+            
             OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") },
+                    label = { Text("Detailed Description") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 4
+                    minLines = 3
             )
-            OutlinedTextField(
+
+            // Priority Selection
+            Column {
+                Text(text = "Priority Level", style = MaterialTheme.typography.labelLarge)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    priorities.forEach { p ->
+                        FilterChip(
+                            selected = priority == p,
+                            onClick = { priority = p },
+                            label = { Text(p) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
-                    label = { Text("Category (e.g., Facilities, Safety)") },
-                    modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
+                    label = { Text("Category") },
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
                     value = location,
                     onValueChange = { location = it },
                     label = { Text("Location") },
-                    modifier = Modifier.fillMaxWidth()
-            )
+                    modifier = Modifier.weight(1f),
+                    trailingIcon = {
+                        IconButton(onClick = { /* Suggestion: Get GPS coordinates */ }) {
+                            Icon(Icons.Default.LocationOn, contentDescription = "Get Location")
+                        }
+                    }
+                )
+            }
+
             OutlinedTextField(
                     value = contact,
                     onValueChange = { contact = it },
-                    label = { Text("Preferred contact") },
+                    label = { Text("Preferred contact (Optional)") },
                     modifier = Modifier.fillMaxWidth()
             )
+
+            OutlinedTextField(
+                value = feedback,
+                onValueChange = { feedback = it },
+                label = { Text("Any additional feedback/notes?") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Button(
                     onClick = { scope.launch { submitComplaint() } },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    enabled = !isLoading,
+                    shape = RoundedCornerShape(12.dp)
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                 } else {
-                    Text(text = "Submit Complaint")
+                    Text(text = "Submit Report", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }

@@ -15,5 +15,6 @@ data class Complaint(
     val userId: String = "",
     val userEmail: String = "",
     val timestamp: Date = Date(),
-    val priority: String = "Medium" // Low, Medium, High
+    val priority: String = "Medium", // Low, Medium, High
+    val feedback: String = "" // Additional user notes or student feedback
 )

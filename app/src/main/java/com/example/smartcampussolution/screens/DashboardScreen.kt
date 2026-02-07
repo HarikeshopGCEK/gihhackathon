@@ -1,45 +1,83 @@
 package com.example.smartcampussolution.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.navigation.NavController
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import com.example.smartcampussolution.data.Complaint
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 @Composable
 fun DashboardScreen(navController: NavController) {
+    val auth = FirebaseAuth.getInstance()
+    val firestore = FirebaseFirestore.getInstance()
+    val currentUser = auth.currentUser
+
+    val isAdmin = currentUser?.email == "opharikesh2005@gmail.com"
+
+    var pendingCount by remember { mutableIntStateOf(0) }
+    var inProgressCount by remember { mutableIntStateOf(0) }
+    var resolvedCount by remember { mutableIntStateOf(0) }
+    var recentComplaints by remember { mutableStateOf(emptyList<Complaint>()) }
+
+    LaunchedEffect(Unit) {
+        // Listen for status counts
+        firestore.collection("complaints").addSnapshotListener { snapshot, _ ->
+            if (snapshot != null) {
+                val docs = snapshot.documents
+                pendingCount = docs.count { it.getString("status") == "Pending" }
+                inProgressCount = docs.count { it.getString("status") == "In Progress" }
+                resolvedCount = docs.count { it.getString("status") == "Resolved" }
+            }
+        }
+
+        // Listen for recent updates (top 5)
+        firestore.collection("complaints")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(5)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    recentComplaints = snapshot.toObjects(Complaint::class.java)
+                }
+            }
+    }
+
     DashboardScreenContent(
+        pendingCount = pendingCount,
+        inProgressCount = inProgressCount,
+        resolvedCount = resolvedCount,
+        recentComplaints = recentComplaints,
+        isAdmin = isAdmin,
         onAddComplaint = { navController.navigate("addComplaint") },
         onMyComplaints = { navController.navigate("myComplaints") },
         onAdmin = { navController.navigate("admin") },
         onAbout = { navController.navigate("about") },
-        onLogout = { navController.navigate("login") }
+        onLogout = {
+            auth.signOut()
+            navController.navigate("login") {
+                popUpTo("dashboard") { inclusive = true }
+            }
+        }
     )
 }
 
-private data class StatusSummary(val label: String, val value: String)
+private data class StatusSummary(val label: String, val value: Int)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardScreenContent(
+    pendingCount: Int,
+    inProgressCount: Int,
+    resolvedCount: Int,
+    recentComplaints: List<Complaint>,
+    isAdmin: Boolean,
     onAddComplaint: () -> Unit,
     onMyComplaints: () -> Unit,
     onAdmin: () -> Unit,
@@ -47,9 +85,9 @@ private fun DashboardScreenContent(
     onLogout: () -> Unit
 ) {
     val summaries = listOf(
-        StatusSummary("Open", "8"),
-        StatusSummary("In Review", "3"),
-        StatusSummary("Resolved", "15")
+        StatusSummary("Pending", pendingCount),
+        StatusSummary("In Progress", inProgressCount),
+        StatusSummary("Resolved", resolvedCount)
     )
 
     Scaffold(
@@ -88,7 +126,7 @@ private fun DashboardScreenContent(
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(text = summary.label, style = MaterialTheme.typography.labelLarge)
                                 Text(
-                                    text = summary.value,
+                                    text = summary.value.toString(),
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -107,13 +145,19 @@ private fun DashboardScreenContent(
                     Button(onClick = onMyComplaints, modifier = Modifier.fillMaxWidth()) {
                         Text(text = "My Complaints")
                     }
-                    Button(onClick = onAdmin, modifier = Modifier.fillMaxWidth()) {
-                        Text(text = "Admin Console")
+                    if (isAdmin) {
+                        Button(
+                            onClick = onAdmin,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                        ) {
+                            Text(text = "Admin Console")
+                        }
                     }
                     Button(onClick = onAbout, modifier = Modifier.fillMaxWidth()) {
                         Text(text = "About the System")
                     }
-                    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Text(text = "Logout")
                     }
                 }
@@ -121,24 +165,40 @@ private fun DashboardScreenContent(
             item {
                 Text(text = "Recent Updates", style = MaterialTheme.typography.titleMedium)
             }
-            items(
-                listOf(
-                    "Library AC reported as faulty - under review",
-                    "Hostel water leak resolved",
-                    "New request submitted for parking lights"
-                )
-            ) { update ->
+            if (recentComplaints.isEmpty()) {
+                item {
+                    Text(
+                        text = "No recent activity found.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+            items(recentComplaints) { complaint ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
-                    Text(
-                        text = update,
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = complaint.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatusBadge(status = complaint.status)
+                        }
+                        Text(
+                            text = "Category: ${complaint.category}",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             }
         }
