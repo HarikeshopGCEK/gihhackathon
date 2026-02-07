@@ -22,103 +22,107 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.navigation.NavController
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun LoginScreen(navController: NavController) {
     LoginScreenContent(
-        onLoginSuccess = { navController.navigate("dashboard") },
-        onRegister = { navController.navigate("register") },
-        onAbout = { navController.navigate("about") }
+            onLoginSuccess = { navController.navigate("dashboard") },
+            onRegister = { navController.navigate("register") },
+            onAbout = { navController.navigate("about") }
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LoginScreenContent(
-    onLoginSuccess: () -> Unit,
-    onRegister: () -> Unit,
-    onAbout: () -> Unit
+        onLoginSuccess: () -> Unit,
+        onRegister: () -> Unit,
+        onAbout: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val auth = remember { FirebaseAuth.getInstance() }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(text = "Smart Campus") }) }
-    ) { innerPadding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(text = "Smart Campus") }) }) { innerPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(20.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier =
+                        Modifier.fillMaxSize()
+                                .padding(innerPadding)
+                                .padding(20.dp)
+                                .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Welcome back",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                    text = "Welcome back",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Sign in to manage campus complaints and requests.",
-                style = MaterialTheme.typography.bodyMedium
+                    text = "Sign in to manage campus complaints and requests.",
+                    style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth()
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth()
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation =
+                            if (passwordVisible) VisualTransformation.None
+                            else PasswordVisualTransformation(),
+                    supportingText = {
+                        Text(
+                            text = if (passwordVisible) "Password is visible" else "Password is hidden",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
             )
             if (errorMessage != null) {
                 Text(
-                    text = errorMessage ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
+                        text = errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
                 )
             }
             Button(
-                onClick = {
-                    if (email.isBlank() || password.isBlank()) {
-                        errorMessage = "Email and password are required."
-                        return@Button
-                    }
-                    isLoading = true
-                    errorMessage = null
-                    auth.signInWithEmailAndPassword(email.trim(), password)
-                        .addOnCompleteListener { task ->
-                            isLoading = false
-                            if (task.isSuccessful) {
-                                onLoginSuccess()
-                            } else {
-                                errorMessage = task.exception?.message ?: "Login failed."
-                            }
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            errorMessage = "Email and password are required."
+                            return@Button
                         }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
-            ) {
-                Text(text = if (isLoading) "Signing in..." else "Login")
-            }
-            TextButton(onClick = onRegister) {
-                Text(text = "Create a new account")
-            }
-            TextButton(onClick = onAbout) {
-                Text(text = "About this app")
-            }
+                        isLoading = true
+                        errorMessage = null
+                        auth.signInWithEmailAndPassword(email.trim(), password)
+                                .addOnCompleteListener { task ->
+                                    isLoading = false
+                                    if (task.isSuccessful) {
+                                        onLoginSuccess()
+                                    } else {
+                                        errorMessage = task.exception?.message ?: "Login failed."
+                                    }
+                                }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
+            ) { Text(text = if (isLoading) "Signing in..." else "Login") }
+            TextButton(onClick = onRegister) { Text(text = "Create a new account") }
+            TextButton(onClick = onAbout) { Text(text = "About this app") }
         }
     }
 }
