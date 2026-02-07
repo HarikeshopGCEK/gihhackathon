@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "373666473790",
+    "project_id": "complaint-reg-3ccc4",
+    "storage_bucket": "complaint-reg-3ccc4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:373666473790:android:a6527554ec800e37b82e6f",
+        "android_client_info": {
+          "package_name": "com.example.smartcampussolution"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjP2lRzbv-oOD4s3O-Hj568adZZvUtnWA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
